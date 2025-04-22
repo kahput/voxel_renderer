@@ -1,14 +1,21 @@
 #version 450
 
-layout(local_size_x = 32, local_size_y = 32) in;
+layout(local_size_x = 16, local_size_y = 16) in;
 layout(rgba32f, binding = 0) uniform image2D out_texture;
 
 void main() {
-    vec4 value = vec4(0.0, 0.0, 0.0, 1.0);
-    ivec2 texture_coordinate = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 coords = ivec2(gl_GlobalInvocationID.xy);
 
-    value.x = float(texture_coordinate.x) / (gl_NumWorkGroups.x * gl_WorkGroupSize.x);
-    value.y = float(texture_coordinate.y) / (gl_NumWorkGroups.y * gl_WorkGroupSize.y);
+    // Use the total number of invocations to normalize
+    // For local_size = (1,1) and dispatch = (WIDTH, HEIGHT, 1),
+    // gl_NumWorkGroups.xy * gl_WorkGroupSize.xy gives the total size.
+    vec2 dimensions = vec2(gl_NumWorkGroups.xy * gl_WorkGroupSize.xy);
 
-    imageStore(out_texture, texture_coordinate, value);
+    vec4 value;
+    value.x = float(coords.x) / dimensions.x; // R channel: Normalized X (0 to ~1)
+    value.y = float(coords.y) / dimensions.y; // G channel: Normalized Y (0 to ~1)
+    value.z = 0.0; // B channel: 0
+    value.w = 1.0; // Alpha: 1.0
+
+    imageStore(out_texture, coords, value);
 }

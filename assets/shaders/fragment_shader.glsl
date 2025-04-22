@@ -1,9 +1,11 @@
 #version 450
 
-in vec3 color;
+in vec2 uv;
 
 out vec4 fragment;
 
+uniform sampler2D u_texture;
+
 void main() {
-    fragment = vec4(color, 1.0);
+    fragment = texture(u_texture, uv);
 }
