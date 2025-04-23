@@ -20,4 +20,7 @@ void opengl_shader_setf(Shader* shader, const char* name, float value);
 void opengl_shader_set2fv(Shader* shader, const char* name, float* value);
 void opengl_shader_set3fv(Shader* shader, const char* name, float* value);
 void opengl_shader_set4fv(Shader* shader, const char* name, float* value);
+void opengl_shader_set2iv(Shader* shader, const char* name, int* value);
+void opengl_shader_set3iv(Shader* shader, const char* name, int* value);
+void opengl_shader_set4iv(Shader* shader, const char* name, int* value);
 void opengl_shader_set4fm(Shader* shader, const char* name, float* value);

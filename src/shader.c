@@ -174,6 +174,22 @@ void opengl_shader_set4fv(Shader* shader, const char* name, float* value) {
 	OpenGLShader* gl_shader = (OpenGLShader*)shader;
 	glUniform4fv(glGetUniformLocation(gl_shader->id, name), 1, value);
 }
+
+void opengl_shader_set2iv(Shader* shader, const char* name, int* value) {
+	OpenGLShader* gl_shader = (OpenGLShader*)shader;
+	glUniform2iv(glGetUniformLocation(gl_shader->id, name), 1, value);
+}
+
+void opengl_shader_set3iv(Shader* shader, const char* name, int* value) {
+	OpenGLShader* gl_shader = (OpenGLShader*)shader;
+	glUniform3iv(glGetUniformLocation(gl_shader->id, name), 1, value);
+}
+
+void opengl_shader_set4iv(Shader* shader, const char* name, int* value) {
+	OpenGLShader* gl_shader = (OpenGLShader*)shader;
+	glUniform4iv(glGetUniformLocation(gl_shader->id, name), 1, value);
+}
+
 void opengl_shader_set4fm(Shader* shader, const char* name, float* value) {
 	OpenGLShader* gl_shader = (OpenGLShader*)shader;
 	glUniformMatrix4fv(glGetUniformLocation(gl_shader->id, name), 1, GL_FALSE, value);

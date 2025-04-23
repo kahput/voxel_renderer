@@ -1,6 +1,7 @@
 #include "base.h"
 #include "base/logger.h"
 #include "shader.h"
+#include <cglm/vec3.h>
 
 #define GLAD_GL_IMPLEMENTATION
 #include <glad/gl.h>
@@ -20,6 +21,15 @@ typedef struct Vertex {
 	vec2 position;
 	vec2 uv;
 } Vertex;
+
+typedef union _color {
+	struct {
+		uint32_t r, g, b, a;
+	};
+	uint32_t data[4];
+} Color;
+
+void generate_sphere_voxels(Color* out_array, uint32_t size);
 
 static const Vertex vertices[] = {
 	{ { 1.f, -1.f }, { 1, 0 } },
@@ -78,9 +88,24 @@ int main(void) {
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE,
 		sizeof(Vertex), (void*)offsetof(Vertex, uv));
 
+	glBindVertexArray(0);
+	glDeleteBuffers(1, &vertex_buffer);
+
+	ivec3 volume_dimensions = { 64, 64, 64 };
+	Color colors[volume_dimensions[0] * volume_dimensions[1] * volume_dimensions[2]];
+	generate_sphere_voxels(colors, 64);
+
+	uint32_t ssbo;
+	glGenBuffers(1, &ssbo);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(colors), colors, GL_DYNAMIC_DRAW);
+
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, ssbo);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // unbind
+
 	// Shader
-	Shader* quad_shader = opengl_shader_from_file("assets/shaders/vertex_shader.glsl", "assets/shaders/fragment_shader.glsl", NULL);
-	Shader* compute_shader = opengl_shader_compute_from_file("assets/shaders/compute_shader.glsl");
+	Shader* quad_shader = opengl_shader_from_file("assets/shaders/default.vert", "assets/shaders/default.frag", NULL);
+	Shader* compute_shader = opengl_shader_compute_from_file("assets/shaders/default.comp");
 
 	int32_t max_group[3], max_group_size[3];
 	for (uint32_t i = 0; i < 3; i++) {
@@ -108,16 +133,18 @@ int main(void) {
 	while (!glfwWindowShouldClose(window)) {
 		int width, height;
 		glfwGetFramebufferSize(window, &width, &height);
-		const float ratio = width / (float)height;
 
 		glViewport(0, 0, width, height);
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		opengl_shader_activate(compute_shader);
+		opengl_shader_set3iv(compute_shader, "u_VolumeDimension", volume_dimensions);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
 		glDispatchCompute((uint32_t)WINDOW_WDITH / 16, (uint32_t)WINDOW_HEIGHT / 16, 1);
 
 		// make sure writing to image has finished before read
 		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
 		glBindVertexArray(vertex_array);
 
@@ -137,4 +164,35 @@ int main(void) {
 
 	glfwTerminate();
 	exit(EXIT_SUCCESS);
+}
+
+void generate_sphere_voxels(Color* out_array, uint32_t size) {
+	float radius = size / 2.f;
+
+	for (int z = 0; z < size; ++z) {
+		for (int y = 0; y < size; ++y) {
+			for (int x = 0; x < size; ++x) {
+				uint32_t index = x + y * size + (z * size * size);
+				vec3 delta = {
+					(x + 0.5f) - radius,
+					(y + 0.5f) - radius,
+					(z + 0.5f) - radius,
+				};
+
+				if ((glm_dot(delta, delta) - 0.1f) <= radius * radius) {
+					// Inside sphere
+					out_array[index] = (Color){
+						.r = 255,
+						.g = 128,
+						.b = 64,
+						.a = 255
+					};
+
+				} else {
+					// Outside sphere
+					out_array[index] = (Color){ 0 };
+				}
+			}
+		}
+	}
 }
