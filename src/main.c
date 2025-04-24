@@ -140,7 +140,7 @@ int main(void) {
 	Camera* camera = camera_create();
 	camera_set_perspective(camera, glm_rad(45.0f), 0.1f, 100.f);
 
-	vec3 camera_position = { 0.f, 0.f, 5.0f }, camera_target = { 0.0f, 0.0f, 0.0f };
+	vec3 camera_position = { 0.f, 0.f, 5.f }, camera_target = { 0.0f, 0.0f, 0.0f };
 	float yaw = 0.0f, pitch = 45.0f;
 	const float camera_sensitivity = 4.f;
 
@@ -164,12 +164,12 @@ int main(void) {
 
 		opengl_shader_activate(compute_shader);
 
-		// print_mat4(inverse_view);
+		print_mat4(inverse_view);
 
 		// Upload camera data to compute shader
-		opengl_shader_set4fm(compute_shader, "view_inverse", (float*)inverse_view);
-		opengl_shader_set4fm(compute_shader, "projection_inverse", (float*)inverse_projection);
-		opengl_shader_setf(compute_shader, "time", (float)glfwGetTime());
+		opengl_shader_set4fm(compute_shader, "uClipToCamera", (float*)inverse_projection);
+		opengl_shader_set4fm(compute_shader, "uCameraToWorld", (float*)inverse_view);
+		opengl_shader_setf(compute_shader, "uTime", (float)glfwGetTime());
 
 		// Upload voxel data to compute shader
 		opengl_shader_set3iv(compute_shader, "u_VolumeDimension", volume_dimensions);
