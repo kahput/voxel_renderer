@@ -1,7 +1,8 @@
 #include "base.h"
 #include "base/logger.h"
+#include "camera.h"
 #include "shader.h"
-#include <cglm/vec3.h>
+#include <cglm/mat4.h>
 
 #define GLAD_GL_IMPLEMENTATION
 #include <glad/gl.h>
@@ -29,6 +30,7 @@ typedef union _color {
 	uint32_t data[4];
 } Color;
 
+void print_mat4(vec4* matrix);
 void generate_sphere_voxels(Color* out_array, uint32_t size);
 
 static const Vertex vertices[] = {
@@ -130,6 +132,18 @@ int main(void) {
 		glBindImageTexture(0, output_texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 	}
 
+	// MVP matrices
+	mat4 model;
+	glm_mat4_identity(model);
+
+	// Camera
+	Camera* camera = camera_create();
+	camera_set_perspective(camera, glm_rad(45.0f), 0.1f, 100.f);
+
+	vec3 camera_position = { 0.f, 0.f, 5.0f }, camera_target = { 0.0f, 0.0f, 0.0f };
+	float yaw = 0.0f, pitch = 45.0f;
+	const float camera_sensitivity = 4.f;
+
 	while (!glfwWindowShouldClose(window)) {
 		int width, height;
 		glfwGetFramebufferSize(window, &width, &height);
@@ -137,9 +151,30 @@ int main(void) {
 		glViewport(0, 0, width, height);
 		glClear(GL_COLOR_BUFFER_BIT);
 
+		glm_vec3_sub(camera_target, camera_position, camera_target);
+		camera_update(camera, camera_position, camera_target, (vec3){ 0.0f, 1.0f, 0.0f });
+
+		mat4 inverse_view, inverse_projection;
+
+		glm_mat4_identity(inverse_view);
+		glm_mat4_identity(inverse_projection);
+
+		glm_mat4_inv((vec4*)camera_get_view(camera), inverse_view);
+		glm_mat4_inv((vec4*)camera_get_projection(camera), inverse_projection);
+
 		opengl_shader_activate(compute_shader);
+
+		// print_mat4(inverse_view);
+
+		// Upload camera data to compute shader
+		opengl_shader_set4fm(compute_shader, "view_inverse", (float*)inverse_view);
+		opengl_shader_set4fm(compute_shader, "projection_inverse", (float*)inverse_projection);
+		opengl_shader_setf(compute_shader, "time", (float)glfwGetTime());
+
+		// Upload voxel data to compute shader
 		opengl_shader_set3iv(compute_shader, "u_VolumeDimension", volume_dimensions);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
+
 		glDispatchCompute((uint32_t)WINDOW_WDITH / 16, (uint32_t)WINDOW_HEIGHT / 16, 1);
 
 		// make sure writing to image has finished before read
@@ -195,4 +230,24 @@ void generate_sphere_voxels(Color* out_array, uint32_t size) {
 			}
 		}
 	}
+}
+
+void print_mat4(vec4* matrix) {
+	LOG_INFO("mat4 value: \n[%.1f, %.1f, %.1f, %.1f]\n[%.1f, %.1f, %.1f, %.1f]\n[%.1f, %.1f, %.1f, %.1f]\n[%.1f, %.1f, %.1f, %.1f]\n",
+		matrix[0][0],
+		matrix[0][1],
+		matrix[0][2],
+		matrix[0][3],
+		matrix[1][0],
+		matrix[1][1],
+		matrix[1][2],
+		matrix[1][3],
+		matrix[2][0],
+		matrix[2][1],
+		matrix[2][2],
+		matrix[2][3],
+		matrix[3][0],
+		matrix[3][1],
+		matrix[3][2],
+		matrix[3][3]);
 }

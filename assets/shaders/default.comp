@@ -8,6 +8,12 @@ layout(std430, binding = 1) buffer voxel_data {
 };
 uniform ivec3 u_VolumeDimension;
 
+// Camera
+uniform mat4 view_inverse;
+uniform mat4 projection_inverse;
+
+uniform float time;
+
 void main() {
     ivec2 coordinates = ivec2(gl_GlobalInvocationID.xy);
 
@@ -21,7 +27,10 @@ void main() {
     vec4 value;
     value.x = coordinates.x / dimensions.x;
     value.y = coordinates.y / dimensions.y;
-    value.z = 1.0f;
+
+    vec3 ro = (view_inverse * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    if (length(ro) >= 0)
+        value.z = 1.0f;
     value.w = 1.0; // Alpha: 1.0
 
     imageStore(out_texture, coordinates, value);
