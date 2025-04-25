@@ -10,7 +10,7 @@ layout(rgba32f, binding = 0) uniform image2D output_image;
 layout(std430, binding = 1) buffer voxel_data {
     ivec4 data[]; // 64*64*64 sized array of voxel colors
 };
-uniform ivec3 uVolumeDimension; // 64x64x64
+uniform vec3 uVolumeDimension; // 64x64x64
 
 // Camera
 uniform mat4 uClipToCamera;
@@ -24,7 +24,7 @@ struct Ray {
 } ray;
 
 vec3 raymarch(vec3 ro, vec3 rd, vec3 volume_origin) {
-    vec3 volume_half_extent = vec3(uVolumeDimension) / 2.0f;
+    vec3 volume_half_extent = uVolumeDimension / 2.0f;
 
     vec3 bounds_min = volume_origin - volume_half_extent;
     vec3 bounds_max = volume_origin + volume_half_extent;

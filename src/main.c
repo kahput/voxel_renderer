@@ -16,8 +16,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define WINDOW_WDITH 1280
+#define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720
+#define VOLUME_SIZE 64
 
 typedef struct Vertex {
 	vec2 position;
@@ -33,6 +34,7 @@ typedef union _color {
 
 void print_mat4(vec4* matrix);
 void generate_sphere_voxels(Color* out_array, uint32_t size);
+void get_mouse_offset(GLFWwindow* window, float* x_offset, float* y_offset);
 
 static const Vertex vertices[] = {
 	{ { 1.f, -1.f }, { 1, 0 } },
@@ -63,7 +65,7 @@ int main(void) {
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-	GLFWwindow* window = glfwCreateWindow(WINDOW_WDITH, WINDOW_HEIGHT, "VoxelRenderer", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "VoxelRenderer", NULL, NULL);
 	if (!window) {
 		glfwTerminate();
 		exit(EXIT_FAILURE);
@@ -73,6 +75,7 @@ int main(void) {
 
 	glfwMakeContextCurrent(window);
 	gladLoadGL(glfwGetProcAddress);
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	GLuint vertex_array;
 	glGenVertexArrays(1, &vertex_array);
@@ -94,8 +97,8 @@ int main(void) {
 	glBindVertexArray(0);
 	glDeleteBuffers(1, &vertex_buffer);
 
-	ivec3 volume_dimensions = { 64, 64, 64 };
-	Color colors[volume_dimensions[0] * volume_dimensions[1] * volume_dimensions[2]];
+	vec3 volume_dimensions = { VOLUME_SIZE, VOLUME_SIZE, VOLUME_SIZE };
+	Color colors[VOLUME_SIZE * VOLUME_SIZE * VOLUME_SIZE];
 	generate_sphere_voxels(colors, 64);
 
 	uint32_t ssbo;
@@ -127,7 +130,7 @@ int main(void) {
 	// set the texture wrapping/filtering options (on the currently bound texture object)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, WINDOW_WDITH, WINDOW_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
 
 	if (output_texture) {
 		glBindImageTexture(0, output_texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
@@ -141,16 +144,38 @@ int main(void) {
 	Camera* camera = camera_create();
 	camera_set_perspective(camera, glm_rad(45.0f), 0.1f, 100.f);
 
-	vec3 camera_position = { 0.f, 0.f, 256.f }, camera_target = { 0.0f, 0.0f, 0.0f };
-	float yaw = 0.0f, pitch = 45.0f;
+	vec3 camera_position = { 0.f, 0.f, 0.f }, camera_target = { 0.0f, 0.0f, 0.0f };
+	float yaw = 315.0f, pitch = 60.0f;
 	const float camera_sensitivity = 4.f;
 
+	float delta_time = 0.0f;
+	float last_frame = 0.0f;
+
 	while (!glfwWindowShouldClose(window)) {
+		float current_frame = glfwGetTime();
+		delta_time = current_frame - last_frame;
+		last_frame = current_frame;
+
 		int width, height;
 		glfwGetFramebufferSize(window, &width, &height);
 
 		glViewport(0, 0, width, height);
 		glClear(GL_COLOR_BUFFER_BIT);
+
+		float x_offset = 0.0f, y_offset = 0.0f;
+		get_mouse_offset(window, &x_offset, &y_offset);
+
+		yaw += x_offset * delta_time * camera_sensitivity;
+		yaw = yaw > 360.f ? 0.f : yaw < 0.0f ? 360.f
+											 : yaw;
+		pitch += y_offset * delta_time * camera_sensitivity;
+		pitch = (5.0f > (105.0f < pitch ? 105.0f : pitch) ? 5.0f : (105.0f < pitch ? 105.0f : pitch));
+
+		camera_position[0] = (VOLUME_SIZE * 5.f) * cos(glm_rad(yaw)) * sin(glm_rad(pitch));
+		camera_position[1] = (VOLUME_SIZE * 5.f) * cos(glm_rad(pitch));
+		camera_position[2] = (VOLUME_SIZE * 5.f) * sin(glm_rad(yaw)) * sin(glm_rad(pitch));
+
+		glm_vec3_scale(camera_target, 0, camera_target);
 
 		glm_vec3_sub(camera_target, camera_position, camera_target);
 		camera_update(camera, camera_position, camera_target, (vec3){ 0.0f, 1.0f, 0.0f });
@@ -173,10 +198,10 @@ int main(void) {
 		opengl_shader_setf(compute_shader, "uTime", (float)glfwGetTime());
 
 		// Upload voxel data to compute shader
-		opengl_shader_set3iv(compute_shader, "uVolumeDimension", volume_dimensions);
+		opengl_shader_set3fv(compute_shader, "uVolumeDimension", volume_dimensions);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
 
-		glDispatchCompute((uint32_t)WINDOW_WDITH / 16, (uint32_t)WINDOW_HEIGHT / 16, 1);
+		glDispatchCompute((uint32_t)WINDOW_WIDTH / 16, (uint32_t)WINDOW_HEIGHT / 16, 1);
 
 		// make sure writing to image has finished before read
 		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
@@ -251,4 +276,24 @@ void print_mat4(vec4* matrix) {
 		matrix[3][1],
 		matrix[3][2],
 		matrix[3][3]);
+}
+void get_mouse_offset(GLFWwindow* window, float* x_offset, float* y_offset) {
+	static uint32_t current_frame = 0;
+	static double last_position_x = 0.0f, last_position_y = 0.0f;
+
+	double current_position_x, current_position_y;
+	glfwGetCursorPos(window, &current_position_x, &current_position_y);
+
+	if (current_frame == 0) {
+		last_position_x = WINDOW_WIDTH / 2.f;
+		last_position_y = WINDOW_HEIGHT / 2.f;
+		current_frame++;
+		return;
+	}
+
+	*x_offset = current_position_x - last_position_x;
+	*y_offset = last_position_y - current_position_y;
+
+	last_position_x = current_position_x;
+	last_position_y = current_position_y;
 }
