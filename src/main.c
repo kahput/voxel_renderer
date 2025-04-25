@@ -3,6 +3,7 @@
 #include "camera.h"
 #include "shader.h"
 #include <cglm/mat4.h>
+#include <cglm/vec3.h>
 
 #define GLAD_GL_IMPLEMENTATION
 #include <glad/gl.h>
@@ -140,7 +141,7 @@ int main(void) {
 	Camera* camera = camera_create();
 	camera_set_perspective(camera, glm_rad(45.0f), 0.1f, 100.f);
 
-	vec3 camera_position = { 0.f, 0.f, 5.f }, camera_target = { 0.0f, 0.0f, 0.0f };
+	vec3 camera_position = { 0.f, 0.f, 256.f }, camera_target = { 0.0f, 0.0f, 0.0f };
 	float yaw = 0.0f, pitch = 45.0f;
 	const float camera_sensitivity = 4.f;
 
@@ -164,7 +165,7 @@ int main(void) {
 
 		opengl_shader_activate(compute_shader);
 
-		print_mat4(inverse_view);
+		// print_mat4(inverse_view);
 
 		// Upload camera data to compute shader
 		opengl_shader_set4fm(compute_shader, "uClipToCamera", (float*)inverse_projection);
@@ -172,7 +173,7 @@ int main(void) {
 		opengl_shader_setf(compute_shader, "uTime", (float)glfwGetTime());
 
 		// Upload voxel data to compute shader
-		opengl_shader_set3iv(compute_shader, "u_VolumeDimension", volume_dimensions);
+		opengl_shader_set3iv(compute_shader, "uVolumeDimension", volume_dimensions);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
 
 		glDispatchCompute((uint32_t)WINDOW_WDITH / 16, (uint32_t)WINDOW_HEIGHT / 16, 1);

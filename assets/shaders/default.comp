@@ -8,9 +8,9 @@ layout(rgba32f, binding = 0) uniform image2D output_image;
 #define SURFACE_DIST 0.01
 
 layout(std430, binding = 1) buffer voxel_data {
-    ivec4 data[];
+    ivec4 data[]; // 64*64*64 sized array of voxel colors
 };
-uniform ivec3 u_VolumeDimension;
+uniform ivec3 uVolumeDimension; // 64x64x64
 
 // Camera
 uniform mat4 uClipToCamera;
@@ -18,47 +18,43 @@ uniform mat4 uCameraToWorld;
 
 uniform float uTime;
 
-float sdSphere(vec3 p, float radius) {
-    return length(p) - radius;
-}
+struct Ray {
+    vec3 origin;
+    vec3 direction;
+} ray;
 
-float scene(vec3 p) {
-    return sdSphere(p, 1.0);
-}
+vec3 raymarch(vec3 ro, vec3 rd, vec3 volume_origin) {
+    vec3 volume_half_extent = vec3(uVolumeDimension) / 2.0f;
 
-float raymarch(vec3 ro, vec3 rd) {
-    float dO = 0.0;
-    vec3 color = vec3(0.0);
+    vec3 bounds_min = volume_origin - volume_half_extent;
+    vec3 bounds_max = volume_origin + volume_half_extent;
 
-    for (int i = 0; i < MAX_STEPS; i++) {
-        vec3 p = ro + rd * dO;
+    vec3 rd_inverse = 1 / rd;
 
-        float dS = scene(p);
-        dO += dS;
+    vec3 t_min = (bounds_min - ro) * rd_inverse;
+    vec3 t_max = (bounds_max - ro) * rd_inverse;
 
-        if (dO > MAX_DIST || dS < SURFACE_DIST) {
-            break;
-        }
-    }
-    return dO;
+    vec3 t_near = min(t_min, t_max);
+    vec3 t_far = max(t_min, t_max);
+
+    float t_entry = max(t_near.x, max(t_near.y, t_near.z));
+    float t_exit = min(t_far.x, min(t_far.y, t_far.z));
+
+    if (t_entry < t_exit && t_exit > 0.0)
+        return vec3(1.0f); // Hit
+    else
+        return vec3(0.0f); // Miss
 }
 
 void main() {
-    vec3 pixel_color = vec3(0.f);
     ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy); // Current pixel position in window space
     ivec2 image_dims = imageSize(output_image); // Window size
     vec2 uv = (pixel_coords - .5 * image_dims) / image_dims;
 
-    vec3 ro = (uCameraToWorld * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-    vec3 rd = normalize(uClipToCamera * vec4(uv.x, uv.y, 1., 1.0)).xyz;
-    rd = normalize((uCameraToWorld * vec4(rd, 0.0)).xyz);
+    ray.origin = (uCameraToWorld * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    ray.direction = normalize(uClipToCamera * vec4(uv.x, uv.y, 1., 1.0)).xyz;
+    ray.direction = normalize((uCameraToWorld * vec4(ray.direction, 0.0)).xyz);
 
-    float d = raymarch(ro, rd);
-    vec3 p = ro + rd * d;
-
-    if (d < MAX_DIST) {
-        pixel_color = vec3(1.0, 1.0, 1.0);
-    }
-
+    vec3 pixel_color = raymarch(ray.origin, ray.direction, vec3(0));
     imageStore(output_image, pixel_coords, vec4(pixel_color, 1.0f));
 }
